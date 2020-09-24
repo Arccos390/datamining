@@ -1,24 +1,40 @@
+import numpy as np
+
+
 # Calculate the Gini index for a split dataset
-def gini_index(groups, classes):
-    # count all samples at split point
-    n_instances = float(sum([len(group) for group in groups]))
-    # sum weighted Gini index for each group
-    gini = 0.0
-    for group in groups:
-        size = float(len(group))
-        # avoid divide by zero
-        if size == 0:
-            continue
-        score = 0.0
-        # score the group based on the score for each class
-        for class_val in classes:
-            p = [row[-1] for row in group].count(class_val) / size
-            score += p * p
-        # weight the group score by its relative size
-        gini += (1.0 - score) * (size / n_instances)
+def gini_index(dataset, target):
+    total_of_group = len(dataset)
+
+    count_for_target_1 = np.count_nonzero([dataset[:, 0] <= target])
+    target_classes_1 = dataset[dataset[:, 0] <= target, -1]
+    if len(target_classes_1) == 0:
+        return None
+    proportion_1 = np.count_nonzero(target_classes_1) / len(target_classes_1)
+    score_1 = 1 - (proportion_1 ** 2 + (1 - proportion_1) ** 2)
+
+    count_for_target_2 = np.count_nonzero([dataset[:, 0] > target])
+    target_classes_2 = dataset[dataset[:, 0] > target, -1]
+    if len(target_classes_2) == 0:
+        return None
+    proportion_2 = np.count_nonzero(target_classes_2) / len(target_classes_2)
+    score_2 = 1 - (proportion_2 ** 2 + (1 - proportion_2) ** 2)
+
+    gini = score_1 * count_for_target_1 / total_of_group + score_2 * count_for_target_2 / total_of_group
     return gini
 
 
 # test Gini values
-print(gini_index([[[1, 1], [1, 0]], [[1, 1], [1, 0]]], [0, 1]))
-print(gini_index([[[1, 0], [1, 0]], [[1, 1], [1, 1]]], [0, 1]))
+# credit_data = [
+#     [22, 0, 0, 28, 1, 0],
+#     [46, 0, 1, 32, 0, 0],
+#     [24, 1, 1, 24, 1, 0],
+#     [25, 0, 0, 27, 1, 0],
+#     [29, 1, 1, 32, 0, 0],
+#     [45, 1, 1, 30, 0, 1],
+#     [63, 1, 1, 58, 1, 1],
+#     [36, 1, 0, 52, 1, 1],
+#     [23, 0, 1, 40, 0, 1],
+#     [50, 1, 1, 28, 0, 1]
+# ]
+#
+# print(gini_index(np.array(credit_data), 24))
