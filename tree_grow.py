@@ -1,46 +1,118 @@
 from best_split import best_split
-from anytree import Node, RenderTree
+from anytree import AnyNode, RenderTree
 import numpy as np
+
+# Settings
+_nmin = 10
+
+# Global nodes
+nodes = {}
+memory_x = {}
 
 
 # @todo
-def tree_grow(x, y, nmin, minleaf, nfeat):
-    # @todo make a check with y
-    number_of_col = np.shape(dataset)[1]
-    for j in range(number_of_col - 1):
-        target_row, target_col, target_value = best_split(x)
-        # select the majority
-        number_of_class_a = np.count_nonzero(x[x[:, target_col] <= target_value, -1])
-        number_of_class_b = len(x[x[:, target_col] <= target_value, -1]) - number_of_class_a
-        if j == 0:
-            root = Node('X%d <= %d' % (target_col, target_value))
-            child = Node((number_of_class_a, number_of_class_b), parent=root)
-        elif j == 1:
-            child = Node('X%d <= %d' % (target_col, target_value), parent=root)
-            exec(f'child_{j-1}_right = child')
-            child = Node((number_of_class_a, number_of_class_b), parent=child)
-            exec(f'child_{j}_left = child')
-        else:
-            child = Node('X%d <= %d' % (target_col, target_value), parent=child)
-            exec(f'child_{j - 1}_right = child')
-            child = Node((number_of_class_a, number_of_class_b), parent=child)
-            exec(f'child_{j}_left = child')
-
-        x[:, target_col] = 0
-        print(x)
-    for pre, fill, node in RenderTree(root):
-        print("%s%s" % (pre, node.name))
-    return root
-
+# def tree_grow(x, y, nmin, minleaf, nfeat):
+#     # @todo make a check with y
+#     number_of_col = np.shape(dataset)[1]
+#     for j in range(number_of_col - 1):
+#         target_row, target_col, target_value = best_split(x)
+#         # select the majority
+#         number_of_class_a = np.count_nonzero(x[x[:, target_col] <= target_value, -1])
+#         number_of_class_b = len(x[x[:, target_col] <= target_value, -1]) - number_of_class_a
+#         if j == 0:
+#             root = Node('X%d <= %d' % (target_col, target_value))
+#             child = Node((number_of_class_a, number_of_class_b), parent=root)
+#             temp_x = x[x[:, target_col] <= target_value, :]
+#             tree = tree_grow(temp_x, y, nmin, minleaf, nfeat)
+#         elif j == 1:
+#             child = Node('X%d <= %d' % (target_col, target_value), parent=root)
+#             exec(f'child_{j - 1}_right = child')
+#             child = Node((number_of_class_a, number_of_class_b), parent=child)
+#             exec(f'child_{j}_left = child')
+#         else:
+#             child = Node('X%d <= %d' % (target_col, target_value), parent=child)
+#             exec(f'child_{j - 1}_right = child')
+#             child = Node((number_of_class_a, number_of_class_b), parent=child)
+#             exec(f'child_{j}_left = child')
+#
+#         # @todo maybe we might split in the same column
+#         x[:, target_col] = 0
+#         # print(x)
+#
+#     return root
 
 # Print a decision tree
-def print_tree(node, depth=0):
-    if isinstance(node, dict):
-        print('%s[X%d < %d]' % ((depth * ' ', (node['index'] + 1), node['value'])))
-        print_tree(node['left'], depth + 1)
-        print_tree(node['right'], depth + 1)
+def print_tree(t):
+    print(RenderTree(t))
+
+
+# if rule = none then leaf node
+def tree_grow(x, y, nmin = _nmin, minleaf=None, nfeat=None):
+    # if nmin not in memory_x:
+    #     memory_x[nmin] = x
+    # else:
+    #     x = memory_x[nmin]
+    # print(x)
+    # print(memory_x)
+    target_row, target_col, target_value = best_split(x)
+    # select the majority
+    number_of_class_a_split_1 = np.count_nonzero(x[x[:, target_col] <= target_value, -1])
+    number_of_class_b_split_1 = len(x[x[:, target_col] <= target_value, -1]) - number_of_class_a_split_1
+
+    number_of_class_a_split_2 = np.count_nonzero(x[x[:, target_col] > target_value, -1])
+    number_of_class_b_split_2 = len(x[x[:, target_col] > target_value, -1]) - number_of_class_a_split_2
+
+    if _nmin == nmin:
+        root = AnyNode(id='root', rule=('X%d <= %.5f' % (target_col, target_value)))
+        nodes[root.id] = root
+        child_left = AnyNode(id='c1_1', parent=root, rule=None,
+                             value=(number_of_class_a_split_1, number_of_class_b_split_1))
+        child_right = AnyNode(id='c1_2', parent=root, rule=None,
+                              value=(number_of_class_a_split_2, number_of_class_b_split_2))
     else:
-        print('%s[%s]' % ((depth * ' ', node)))
+        height = _nmin - nmin + 1
+        width = 1
+        # @todo make log steps to reduce time complexity
+        for key in reversed(nodes.keys()):
+            if key == 'root':
+                continue
+            temp_height = int(key.split('_')[0].replace('c', ''))
+            if temp_height == height:
+                width = int(key.split('_')[1])
+        a = 0
+        if (nodes['c%d_%d' % (height - 1, (width + 1) / 2)].value[0] == 0 or
+                nodes['c%d_%d' % (height - 1, (width + 1) / 2)].value[1] == 0):
+            a = 1
+        child_left = AnyNode(id='c%d_%d' % (height, width), parent=nodes['c%d_%d' % (height - 1, (width + 1) / 2 + a)],
+                             rule=None,
+                             value=(number_of_class_a_split_1, number_of_class_b_split_1))
+        child_right = AnyNode(id='c%d_%d' % (height, width + 1),
+                              parent=nodes['c%d_%d' % (height - 1, (width + 1) / 2 + a)],
+                              rule=None,
+                              value=(number_of_class_a_split_2, number_of_class_b_split_2))
+        nodes['c%d_%d' % (height - 1, (width + 1) / 2 + a)].rule = ('X%d <= %.5f' % (target_col, target_value))
+    nodes[child_left.id] = child_left
+    nodes[child_right.id] = child_right
+
+    print_tree(nodes['root'])
+    # If yes we can split again (left split)
+    if number_of_class_a_split_1 != 0 and number_of_class_b_split_1 != 0:
+        nmin -= 1
+        if nmin != 0:
+            x = x[x[:, target_col] <= target_value, :]
+            tree_grow(x, y, nmin, minleaf, nfeat)
+
+    # If yes we can split again (right split)
+    if number_of_class_a_split_2 != 0 and number_of_class_b_split_2 != 0:
+        nmin -= 1
+        if nmin != 0:
+            x = x[x[:, target_col] > target_value, :]
+            tree_grow(x, y, nmin, minleaf, nfeat)
+
+    nmin += 2
+    print('s')
+    print(nmin)
+    return nodes['root']
 
 
 dataset = [[2.771244718, 1.784783929, 0],
@@ -67,5 +139,8 @@ credit_data = [
     [50, 1, 1, 28, 0, 1]
 ]
 
+
 dataset = np.array(credit_data)
-tree_grow(dataset, [0, 1], 1, 1, 1)
+tree = tree_grow(dataset, [0, 1])
+print(nodes)
+print_tree(tree)
