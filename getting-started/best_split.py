@@ -21,10 +21,6 @@ def best_split(dataset):
                 target = dataset[i, j]
                 row_target = i
                 col_target = j
-    print(_min)
-    print(target)
-    print(row_target)
-    print(col_target)
     return row_target, col_target, target
 
 
