@@ -1,9 +1,9 @@
 import random
-import pandas as pd
 from anytree import AnyNode, RenderTree
 import numpy as np
 from numpy import genfromtxt
-from queue import LifoQueue as lifo
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix as conf
 
 # Global nodes
 nodes = {}
@@ -31,15 +31,15 @@ def tree_grow(x, y, nmin=8, minleaf=3, nfeat=None): #wrong parameters, more than
         #count the number of instances per class for the child nodes
         #To access root
         if parent is None:
-            root = AnyNode(id='root', rule=('X%d <= %.5f' % (target_col, target_value)))
+            root = AnyNode(id='root', rule=('X%d <= %.5f' % (target_col, target_value)), split_value=target_value, split_column = target_col)
             nodes[root.id] = root
-            x_l = x[x[:, target_col] < target_value, :]
-            x_r = x[x[:, target_col] >= target_value, :]
+            x_l = x[x[:, target_col] > target_value, :]
+            x_r = x[x[:, target_col] <= target_value, :]
             y_l = []
             y_r = []
             helper = x[:, target_col]
             for i in range(len(helper)):
-                if helper[i] < target_value:
+                if helper[i] > target_value:
                     y_l.append(y[i])
                 else:
                     y_r.append(y[i])
@@ -48,9 +48,11 @@ def tree_grow(x, y, nmin=8, minleaf=3, nfeat=None): #wrong parameters, more than
             number_of_class_a_split_2 =  sum(y_r)
             number_of_class_b_split_2 = len(y_r) - number_of_class_a_split_2
             child_left = AnyNode(id='c1', parent=root, rule=None, x=x_l, y=y_l,
-                                 value=(number_of_class_a_split_1, number_of_class_b_split_1))
+                                 value=[number_of_class_a_split_1, number_of_class_b_split_1])
             child_right = AnyNode(id='c2', parent=root, rule=None, x= x_r, y = y_r,
-                                  value=(number_of_class_a_split_2, number_of_class_b_split_2))
+                                  value=[number_of_class_a_split_2, number_of_class_b_split_2])
+            #trial for pred
+            root.children= [child_left,child_right]
             nodes[child_left.id] = child_left
             nodes[child_right.id] = child_right
             nodes_to_examine.append(child_left)
@@ -75,8 +77,8 @@ def tree_grow(x, y, nmin=8, minleaf=3, nfeat=None): #wrong parameters, more than
                 continue
             else:
                 node_counter = node_counter + 1
-                x_l = x_c[x_c[:, target_col] < target_value, :]
-                x_r = x_c[x_c[:, target_col] >= target_value, :]
+                x_l = x_c[x_c[:, target_col] > target_value, :]
+                x_r = x_c[x_c[:, target_col] <= target_value, :]
                 """
                 if x_l.shape[0] < minleaf or x_r.shape[0] < minleaf:
                     break
@@ -85,7 +87,7 @@ def tree_grow(x, y, nmin=8, minleaf=3, nfeat=None): #wrong parameters, more than
                 y_r = []
                 helper = x_c[:, target_col]
                 for i in range(len(helper)):
-                    if helper[i] < target_value:
+                    if helper[i] > target_value:
                         y_l.append(y_c[i])
                     else:
                         y_r.append(y_c[i])
@@ -94,20 +96,48 @@ def tree_grow(x, y, nmin=8, minleaf=3, nfeat=None): #wrong parameters, more than
                 number_of_class_a_split_2 = sum(y_r)
                 number_of_class_b_split_2 = len(y_r) - number_of_class_a_split_2
                 child_left = AnyNode(id='c%d' % node_counter,
-                                     parent=candidate,
+                                     parent=candidate, split_value = None, split_column = None,
                                      rule=None, x=x_l, y = y_l,
-                                     value=(number_of_class_a_split_1, number_of_class_b_split_1))
+                                     value=[number_of_class_a_split_1, number_of_class_b_split_1])
                 node_counter = node_counter + 1
                 child_right = AnyNode(id='c%d' % node_counter,
-                                      parent=candidate,
+                                      parent=candidate, split_value = None, split_column = None,
                                       rule=None, x=x_r, y = y_r,
-                                      value=(number_of_class_a_split_2, number_of_class_b_split_2))
+                                      value=[number_of_class_a_split_2, number_of_class_b_split_2])
                 candidate.rule = ('X%d <= %.5f' % (target_col, target_value))
+                candidate.children = [child_left, child_right]
+                candidate.split_column = target_col
+                candidate.split_value = target_value
                 nodes[child_left.id] = child_left
                 nodes[child_right.id] = child_right
                 nodes_to_examine.append(child_left)
                 nodes_to_examine.append(child_right)
     return nodes['root']
+
+
+def tree_pred(x, tree):
+    predictions = []
+    for xpred in x:
+        pred = None
+        p = tree
+        while (True):
+            if p.rule == None:
+                if p.value[0] > p.value[1]:
+                    predictions.append(1)
+                    break
+                else:
+                    predictions.append(0)
+                    break
+            else:
+                col = p.split_column
+                val = p.split_value
+                if xpred[col] > val:
+                    new_p = p.children[0]
+                else:
+                    new_p = p.children[1]
+                p = new_p
+    return predictions
+
 
 def best_split(x, y, nmin, minleaf,  nfeat): #x,y inputs + plus overfitting parameters
     parent_impurity = gini_index(y)
@@ -135,7 +165,7 @@ def best_split(x, y, nmin, minleaf,  nfeat): #x,y inputs + plus overfitting para
             child1 = []
             child2 = []
             for i in range(len(xcolumn)):
-                if xcolumn[i] < point:
+                if xcolumn[i] > point:
                     child1.append(y[i])
                 else:
                     child2.append(y[i])
@@ -199,5 +229,9 @@ pima = genfromtxt('pima_numbers.csv', delimiter=',')
 
 x = pima[:, :-1]
 y = pima[:,-1]
-tree = tree_grow(x, y, 40, 10 )
+tree = tree_grow(x, y, 20, 5 )
 print_tree(tree)
+
+pred = tree_pred(x, tree)
+print(conf(y,pred))
+print(accuracy_score(y,pred))
