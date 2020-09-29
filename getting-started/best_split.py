@@ -1,27 +1,52 @@
-from gini_index import gini_index
 import numpy as np
+import random
+import pandas as pd
 
 
-def best_split(dataset):
-    number_of_col = np.shape(dataset)[1]
-    number_of_row = np.shape(dataset)[0]
-    _min = 1
+def best_split(x, y, nmin, minleaf,  nfeat): #x,y inputs + plus overfitting parameters
+    parent_impurity = gini_index(y)
+    number_of_col = x.shape[1]
+    print(number_of_col)
     target = None
     col_target = None
-    row_target = None
-    for j in range(number_of_col - 1):
-        for i in range(number_of_row):
-            temp = np.c_[dataset[:, j], dataset[:, -1]]
-            target_for_split = dataset[i, j]
-            gini = gini_index(temp, target_for_split)
-            if gini is None:
+    best_quality = 0
+    # if parent has lower instances than nmin this node becomes a leaf -- return 2 Nones
+    if x.shape[0] < nmin:
+        return(target, col_target)
+    #check nfeat parameter. Either all features will be examined or a random sample of them with length of nfeat
+    if nfeat == number_of_col:
+        feat = list(range(number_of_col))
+    else:
+        feat = random.sample(range(0, number_of_col - 1), nfeat)
+    for j in feat:# examine each feature
+        xcolumn = x[:, j]
+        x_sorted = np.sort(np.unique(xcolumn))
+        x_splitpoints = (x_sorted[0:x_sorted.shape[0] - 1] + x_sorted[1:x_sorted.shape[0]]) / 2
+        qualities = np.array([])
+        for point in x_splitpoints: # examine all possible splitpoints
+            child1 = y[xcolumn > point]
+            child2 = y[xcolumn <= point]
+            # check if the split is possible according to minleaf constrains
+            if child1.shape[0] < minleaf or child2.shape[0] < minleaf:
                 continue
-            if gini < _min:
-                _min = gini
-                target = dataset[i, j]
-                row_target = i
-                col_target = j
-    return row_target, col_target, target
+            ratio = child1.shape[0] / y.shape[0]
+            qualities = np.append(qualities,
+                                   parent_impurity - ratio * gini_index(child1) - (1 - ratio) * gini_index(child2))
+        candidate = np.max(qualities)
+        ind = np.argmax(qualities)
+        if candidate > best_quality:
+            best_quality = candidate
+            target = ind
+            col_target = j
+    return col_target, target
+
+
+# Calculate the Gini index for a split dataset
+def gini_index(labels):
+    numerator = np.sum(labels)
+    div = labels.shape[0]
+    return (numerator/div)*(1-numerator/div)
+
 
 
 # test best_split
@@ -49,4 +74,8 @@ dataset = [[2.771244718,1.784783929,0],
 	[10.12493903,3.234550982,1],
 	[6.642287351,3.319983761,1]]
 
-print(best_split(np.array(dataset)))
+data = pd.DataFrame(dataset)
+x = data.iloc[:, 0:2]
+y = data.iloc[:,2]
+print(np.array(x))
+print(best_split(np.array(x),np.array(y), 4,2,2))

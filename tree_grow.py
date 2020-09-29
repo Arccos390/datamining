@@ -1,7 +1,9 @@
-from best_split import best_split
+import random
+import pandas as pd
 from anytree import AnyNode, RenderTree
 import numpy as np
 from numpy import genfromtxt
+from queue import LifoQueue as lifo
 
 # Global nodes
 nodes = {}
@@ -17,66 +19,150 @@ def print_tree(t):
 # @todo fix the rule comparison. All the rules are <=. The values from the split are correct.
 # @todo add image command to show the tree
 # @todo nfeet
-def tree_grow(x, y, nmin=10, minleaf=10, nfeat=None, height_parent=None, width_parent=None):
-    target_row, target_col, target_value = best_split(x)
-    number_of_class_a_split_1 = np.count_nonzero(x[x[:, target_col] <= target_value, -1])
-    number_of_class_b_split_1 = len(x[x[:, target_col] <= target_value, -1]) - number_of_class_a_split_1
-
-    number_of_class_a_split_2 = np.count_nonzero(x[x[:, target_col] > target_value, -1])
-    number_of_class_b_split_2 = len(x[x[:, target_col] > target_value, -1]) - number_of_class_a_split_2
-
-    if minleaf > number_of_class_a_split_1 + number_of_class_b_split_1:
-        return
-    if minleaf > number_of_class_a_split_2 + number_of_class_b_split_2:
-        return
-
-    if height_parent is None and width_parent is None:
-        root = AnyNode(id='root', rule=('X%d <= %.5f' % (target_col, target_value)))
-        nodes[root.id] = root
-        child_left = AnyNode(id='c1_1', parent=root, rule=None,
-                             value=(number_of_class_a_split_1, number_of_class_b_split_1))
-        child_right = AnyNode(id='c1_2', parent=root, rule=None,
-                              value=(number_of_class_a_split_2, number_of_class_b_split_2))
-        height_child = 1
-        width_child = 1
-    else:
-        height_child = height_parent + 1
-        width_child = 1
-        # @todo make log steps to reduce time complexity
-        # Find if there is any node in the same height as the child's height. If yes continue the width of the last
-        # child's node
-        for key in reversed(nodes.keys()):
-            if key == 'root':
-                continue
-            current_height = int(key.split('_')[0].replace('c', ''))
-            if current_height == height_child:
-                width_child = int(key.split('_')[1]) + 1
+def tree_grow(x, y, nmin=8, minleaf=3, nfeat=None): #wrong parameters, more than we asked. It should work in a loop and not recursive
+    if nfeat is None:
+        nfeat = x.shape[1]
+    parent = None
+    #nodes_to_examine = lifo()
+    nodes_to_examine = []
+    node_counter = 2 # for iteration between nodes
+    while True:
+        target_col, target_value = best_split(x, y, nmin, minleaf, nfeat)  # parameters for overfitting should be passed on best split and examined there
+        #count the number of instances per class for the child nodes
+        #To access root
+        if parent is None:
+            root = AnyNode(id='root', rule=('X%d <= %.5f' % (target_col, target_value)))
+            nodes[root.id] = root
+            x_l = x[x[:, target_col] < target_value, :]
+            x_r = x[x[:, target_col] >= target_value, :]
+            y_l = []
+            y_r = []
+            helper = x[:, target_col]
+            for i in range(len(helper)):
+                if helper[i] < target_value:
+                    y_l.append(y[i])
+                else:
+                    y_r.append(y[i])
+            number_of_class_a_split_1 = sum(y_l)
+            number_of_class_b_split_1 = len(y_l) - number_of_class_a_split_1
+            number_of_class_a_split_2 =  sum(y_r)
+            number_of_class_b_split_2 = len(y_r) - number_of_class_a_split_2
+            child_left = AnyNode(id='c1', parent=root, rule=None, x=x_l, y=y_l,
+                                 value=(number_of_class_a_split_1, number_of_class_b_split_1))
+            child_right = AnyNode(id='c2', parent=root, rule=None, x= x_r, y = y_r,
+                                  value=(number_of_class_a_split_2, number_of_class_b_split_2))
+            nodes[child_left.id] = child_left
+            nodes[child_right.id] = child_right
+            nodes_to_examine.append(child_left)
+            nodes_to_examine.append(child_right)
+            parent = 1
+        #any other node
+        else:
+            #check if lifo empty, if it is break as there are no other nodes to examine
+            if not nodes_to_examine:
                 break
-        child_left = AnyNode(id='c%d_%d' % (height_child, width_child),
-                             parent=nodes['c%d_%d' % (height_parent, width_parent)],
-                             rule=None,
-                             value=(number_of_class_a_split_1, number_of_class_b_split_1))
-        child_right = AnyNode(id='c%d_%d' % (height_child, width_child + 1),
-                              parent=nodes['c%d_%d' % (height_parent, width_parent)],
-                              rule=None,
-                              value=(number_of_class_a_split_2, number_of_class_b_split_2))
-        nodes['c%d_%d' % (height_parent, width_parent)].rule = ('X%d <= %.5f' % (target_col, target_value))
-    nodes[child_left.id] = child_left
-    nodes[child_right.id] = child_right
-
-    # If yes we can split again (left split)
-    if number_of_class_a_split_1 != 0 and number_of_class_b_split_1 != 0 and \
-            nmin < number_of_class_a_split_1 + number_of_class_b_split_1:
-        x_left = x[x[:, target_col] <= target_value, :]
-        tree_grow(x_left, y, nmin, minleaf, nfeat, height_child, width_child)
-
-    # If yes we can split again (right split)
-    if number_of_class_a_split_2 != 0 and number_of_class_b_split_2 != 0 and \
-            nmin < number_of_class_a_split_2 + number_of_class_b_split_2:
-        x_right = x[x[:, target_col] > target_value, :]
-        tree_grow(x_right, y, nmin, minleaf, nfeat, height_child, width_child + 1)
-
+            #get node from lifo
+            candidate = nodes_to_examine[0]
+            nodes_to_examine = nodes_to_examine[1:]
+            x_c = candidate.x #get the instances that belong to the node
+            y_c = candidate.y
+            #second check
+            if x_c.shape[0] < nmin or x_c.shape[0] < 2*minleaf:
+                continue
+            target_col, target_value = best_split(x_c, y_c, nmin, minleaf,
+                                                  nfeat)  #get the split for the node
+            if target_value is None and target_col is None:
+                continue
+            else:
+                node_counter = node_counter + 1
+                x_l = x_c[x_c[:, target_col] < target_value, :]
+                x_r = x_c[x_c[:, target_col] >= target_value, :]
+                """
+                if x_l.shape[0] < minleaf or x_r.shape[0] < minleaf:
+                    break
+                    """
+                y_l = []
+                y_r = []
+                helper = x_c[:, target_col]
+                for i in range(len(helper)):
+                    if helper[i] < target_value:
+                        y_l.append(y_c[i])
+                    else:
+                        y_r.append(y_c[i])
+                number_of_class_a_split_1 = sum(y_l)
+                number_of_class_b_split_1 = len(y_l) - number_of_class_a_split_1
+                number_of_class_a_split_2 = sum(y_r)
+                number_of_class_b_split_2 = len(y_r) - number_of_class_a_split_2
+                child_left = AnyNode(id='c%d' % node_counter,
+                                     parent=candidate,
+                                     rule=None, x=x_l, y = y_l,
+                                     value=(number_of_class_a_split_1, number_of_class_b_split_1))
+                node_counter = node_counter + 1
+                child_right = AnyNode(id='c%d' % node_counter,
+                                      parent=candidate,
+                                      rule=None, x=x_r, y = y_r,
+                                      value=(number_of_class_a_split_2, number_of_class_b_split_2))
+                candidate.rule = ('X%d <= %.5f' % (target_col, target_value))
+                nodes[child_left.id] = child_left
+                nodes[child_right.id] = child_right
+                nodes_to_examine.append(child_left)
+                nodes_to_examine.append(child_right)
     return nodes['root']
+
+def best_split(x, y, nmin, minleaf,  nfeat): #x,y inputs + plus overfitting parameters
+    parent_impurity = gini_index(y)
+    number_of_col = x.shape[1]
+    target = None
+    col_target = None
+    best_quality = 0
+    # if parent has lower instances than nmin this node becomes a leaf -- return 2 Nones
+    if x.shape[0] < nmin:
+        return target, col_target
+    #check nfeat parameter. Either all features will be examined or a random sample of them with length of nfeat
+    if nfeat == number_of_col:
+        feat = list(range(number_of_col))
+    else:
+        feat = random.sample(range(0, number_of_col - 1), nfeat)
+    for j in feat:# examine each feature
+        xcolumn = x[:, j]
+        x_sorted = np.sort(np.unique(xcolumn))
+        x_splitpoints = []
+        for i in range(x_sorted.shape[0]-1):
+            x_splitpoints.append((x_sorted[i]+x_sorted[i+1])/2)
+        qualities = np.array([])
+        x_kept = []
+        for point in x_splitpoints: # examine all possible splitpoints
+            child1 = []
+            child2 = []
+            for i in range(len(xcolumn)):
+                if xcolumn[i] < point:
+                    child1.append(y[i])
+                else:
+                    child2.append(y[i])
+            # check if the split is possible according to minleaf constrains
+            if len(child1) < minleaf or len(child2) < minleaf:
+                continue
+            ratio = len(child1) / len(y)
+            qualities = np.append(qualities,
+                                   parent_impurity - ratio * gini_index(child1) - (1 - ratio) * gini_index(child2))
+            x_kept.append(point)
+        if not list(qualities):
+            continue
+        candidate = np.max(qualities)
+        ind = np.argmax(qualities)
+        if candidate > best_quality:
+            best_quality = candidate
+            target = x_kept[ind]
+            col_target = j
+    return col_target, target
+
+
+# Calculate the Gini index for a split dataset
+def gini_index(labels):
+    labels = list(labels)
+    numerator = np.sum(labels)
+    div = len(labels)
+    return (numerator/div)*(1-numerator/div)
 
 
 dataset = [[2.771244718, 1.784783929, 0],
@@ -111,6 +197,7 @@ credit_data = [
 
 pima = genfromtxt('pima_numbers.csv', delimiter=',')
 
-tree = tree_grow(pima, [0, 1])
-
+x = pima[:, :-1]
+y = pima[:,-1]
+tree = tree_grow(x, y, 40, 10 )
 print_tree(tree)
