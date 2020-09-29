@@ -1,4 +1,5 @@
 import random
+from random import randint
 from anytree import AnyNode, RenderTree
 import numpy as np
 from numpy import genfromtxt
@@ -12,7 +13,6 @@ nodes = {}
 # Print a decision tree
 def print_tree(t):
     print(RenderTree(t))
-
 
 # @todo make y separate from x and check if it 0 or 1
 # @todo change the height and width parameter
@@ -137,6 +137,38 @@ def tree_pred(x, tree):
                     new_p = p.children[1]
                 p = new_p
     return predictions
+
+
+def tree_grow_b(x, y, m, nmin=8, minleaf=3, nfeat=None):
+    trees = []
+    dim = x.shape[0]
+    for i in range(m):
+        x_local = []
+        y_local = []
+        for j in range(dim):
+            ind = randint(0,dim-1)
+            x_local.append(x[ind,:])
+            y_local.append(y[ind])
+        tree = tree_grow(x,y,nmin,minleaf,nfeat)
+        trees.append(tree)
+    return trees
+
+def tree_pred_b(x, trees):
+    predictions_bag = []
+    predictions_gathered = []
+    m = len(trees)
+    for i in range(m):
+        predictions = tree_pred(x, trees[i])
+        predictions_gathered.append(predictions)
+    for j in range(x.shape[0]):
+        summed = 0
+        for k in range(m):
+            summed = summed + predictions_gathered[k][j]
+        if summed/m > 0.5 :
+            predictions_bag.append(1)
+        else:
+            predictions_bag.append(0)
+    return predictions_bag
 
 
 def best_split(x, y, nmin, minleaf,  nfeat): #x,y inputs + plus overfitting parameters
