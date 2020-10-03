@@ -176,7 +176,7 @@ def tree_grow_b(x, y, m, nmin=8, minleaf=3, nfeat=None):
             x_local.append(x[ind,:])
             y_local.append(y[ind])
         # call tree_grow and append the tree into the list
-        tree = tree_grow(x_local,y_local,nmin,minleaf,nfeat)
+        tree = tree_grow(np.array(x_local),y_local,nmin,minleaf,nfeat)
         trees.append(tree)
     return trees
 
