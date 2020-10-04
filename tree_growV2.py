@@ -3,12 +3,16 @@
 #Markos Polos 6966985
 import random
 from random import randint
-from anytree import AnyNode, RenderTree
+from anytree import Node, RenderTree
 import numpy as np
 from numpy import genfromtxt
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import confusion_matrix as conf
 from anytree.dotexport import RenderTreeGraph
+
+from graphviz import Source
+from graphviz import render
+from anytree.exporter import DotExporter
 
 """
 Function: tree_grow
@@ -27,13 +31,15 @@ def tree_grow(x, y, nmin=8, minleaf=3, nfeat=None):
         nfeat = x.shape[1]
     parent = None # for the first iteration of the while loop, so it creates the root node
     nodes_to_examine = [] # a list that will contain every node that should be examinded to either split or become leaf
+    x_to_examine = []
+    y_to_examine = []
     node_counter = 2 # for id between nodes
     while True: # the while-loop will stay True until the variable nodes_to_examine becomes empty and there is no other node to be examine
         # Only one time the if will hold - so we initiate the tree with the root node
         if parent is None:
             # calling the best_split function to get for the original data the point of the best split (column, value)
             target_col, target_value = best_split(x, y, nmin, minleaf, nfeat)
-            root = AnyNode(id='root', split_value=target_value, split_column = target_col) # create the root node
+            root = Node('root', rule="x%d =< %.3f" %(target_col, target_value) , split_value=target_value, split_column = target_col) # create the root node
             # split the X and Y arrays into their left and right splits as instructed by the best split
             x_l = x[x[:, target_col] > target_value, :]
             x_r = x[x[:, target_col] <= target_value, :]
@@ -54,14 +60,18 @@ def tree_grow(x, y, nmin=8, minleaf=3, nfeat=None):
             # Create the child nodes of the root. Each node has an id and a linkage to the parent.
             # Split_value and column are the values are none if the node becomes a leaf else are the splitting points.
             # Its own x and y after it created and the instances for each class inside it
-            child_left = AnyNode(id='c1', parent=root, split_value = None, split_column = None, x=x_l, y=y_l,
+            child_left = Node('c1', parent=root, rule = None, split_value = None, split_column = None,
                                  value=[number_of_class_a_split_1, number_of_class_b_split_1])
-            child_right = AnyNode(id='c2', parent=root, split_value = None, split_column = None, x= x_r, y = y_r,
+            child_right = Node('c2', parent=root, rule = None, split_value = None, split_column = None,
                                   value=[number_of_class_a_split_2, number_of_class_b_split_2])
             root.children = [child_left,child_right] # link between root and child nodes
             # both appended into the list of nodes to be examined
             nodes_to_examine.append(child_left)
             nodes_to_examine.append(child_right)
+            x_to_examine.append(x_l)
+            x_to_examine.append(x_r)
+            y_to_examine.append(y_l)
+            y_to_examine.append(y_r)
             parent = 1 # root initiated and now parent is not None
         # the loop for any other node out of the root
         else:
@@ -73,8 +83,10 @@ def tree_grow(x, y, nmin=8, minleaf=3, nfeat=None):
             candidate = nodes_to_examine[0]
             nodes_to_examine = nodes_to_examine[1:]
             # get the X and Y instances that belong to the node so we can examine if it can split and where.
-            x_c = candidate.x
-            y_c = candidate.y
+            x_c = x_to_examine[0]
+            y_c = y_to_examine[0]
+            x_to_examine = x_to_examine[1:]
+            y_to_examine = y_to_examine[1:]
             #second check
             target_col, target_value = best_split(x_c, y_c, nmin, minleaf, nfeat)# call of best split to examine the node
             # if None then the examined Node becomes a leaf and continue the while loop with another node if available
@@ -101,12 +113,12 @@ def tree_grow(x, y, nmin=8, minleaf=3, nfeat=None):
                 number_of_class_a_split_2 = sum(y_r)
                 number_of_class_b_split_2 = len(y_r) - number_of_class_a_split_2
                 # creation of the two child nodes
-                child_left = AnyNode(id='c%d' % node_counter, parent=candidate, split_value = None,
-                                     split_column = None, x=x_l, y = y_l,
+                child_left = Node('c%d' % node_counter, parent=candidate, split_value = None,
+                                     split_column = None,
                                      value=[number_of_class_a_split_1, number_of_class_b_split_1])
                 node_counter = node_counter + 1 # for ids to progress properly
-                child_right = AnyNode(id='c%d' % node_counter, parent=candidate, split_value = None,
-                                      split_column = None, x=x_r, y = y_r,
+                child_right = Node('c%d' % node_counter, parent=candidate, split_value = None,
+                                      split_column = None,
                                       value=[number_of_class_a_split_2, number_of_class_b_split_2])
                 # link between children and parent nodes
                 candidate.children = [child_left, child_right]
@@ -114,9 +126,14 @@ def tree_grow(x, y, nmin=8, minleaf=3, nfeat=None):
                 # If their values remain None that means that the node is a leaf
                 candidate.split_column = target_col
                 candidate.split_value = target_value
+                candidate.rule = "x%d =< %.3f" %(target_col, target_value)
                 # input the children nodes into the list
                 nodes_to_examine.append(child_left)
                 nodes_to_examine.append(child_right)
+                x_to_examine.append(x_l)
+                x_to_examine.append(x_r)
+                y_to_examine.append(y_l)
+                y_to_examine.append(y_r)
     return root
 
 """ Function : tree_pred
@@ -297,6 +314,11 @@ def gini_index(labels):
 # Print a decision tree
 def print_tree(t):
     print(RenderTree(t))
+    """
+    DotExporter(t).to_dotfile('udo.dot')
+    Source.from_file('udo.dot')
+    render('dot', 'png', 'udo.dot')"""
+
 
 
 
