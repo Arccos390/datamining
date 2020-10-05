@@ -3,11 +3,8 @@
 #Markos Polos 6966985
 import random
 from random import randint
-from anytree import AnyNode, RenderTree
+from anytree import AnyNode
 import numpy as np
-from numpy import genfromtxt
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import confusion_matrix as conf
 
 """
 Function: tree_grow
@@ -294,50 +291,3 @@ def gini_index(labels):
     numerator = np.sum(labels)
     div = len(labels)
     return (numerator/div)*(1-numerator/div)
-
-# Print a decision tree
-def print_tree(t):
-    print(RenderTree(t))
-
-
-
-dataset = [[2.771244718, 1.784783929, 0],
-           [1.728571309, 1.169761413, 0],
-           [3.678319846, 2.81281357, 0],
-           [3.961043357, 2.61995032, 0],
-           [2.999208922, 2.209014212, 0],
-           [7.497545867, 3.162953546, 1],
-           [9.00220326, 3.339047188, 1],
-           [7.444542326, 0.476683375, 1],
-           [10.12493903, 3.234550982, 1],
-           [6.642287351, 3.319983761, 1]]
-
-credit_data = [
-    [22, 0, 0, 28, 1, 0],
-    [46, 0, 1, 32, 0, 0],
-    [24, 1, 1, 24, 1, 0],
-    [25, 0, 0, 27, 1, 0],
-    [29, 1, 1, 32, 0, 0],
-    [45, 1, 1, 30, 0, 1],
-    [63, 1, 1, 58, 1, 1],
-    [63, 1, 1, 58, 1, 1],
-    [63, 1, 1, 58, 1, 1],
-    [63, 1, 1, 58, 1, 1],
-    [63, 1, 1, 58, 0, 0],
-    [36, 1, 0, 52, 1, 1],
-    [23, 0, 1, 40, 0, 1],
-    [50, 1, 1, 28, 0, 1]
-]
-
-# dataset = np.array(credit_data)
-
-pima = genfromtxt('pima_numbers.csv', delimiter=',')
-
-x = pima[:, :-1]
-y = pima[:,-1]
-tree = tree_grow(x, y, 20, 5 )
-print_tree(tree)
-
-pred = tree_pred(x, tree)
-print(conf(y,pred))
-print(accuracy_score(y,pred))
